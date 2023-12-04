@@ -9,6 +9,7 @@ import { CustomFile } from 'telegram/client/uploads';
 import * as cache from './cache';
 import { SeasonEnum, TimesOfDayEnum } from './enums';
 import { logger } from './logger';
+import { differenceInDays, differenceInMilliseconds } from 'date-fns';
 
 const apiId = Number(process.env.APP_ID as string);
 const apiHash = process.env.APP_HASH as string;
@@ -23,22 +24,55 @@ function getFileFromAssetsFolder(fileName: string) {
 
   const client = await auth();
 
-  uploadAvatarOnceEveryMinute(client);
+  // uploadAvatarOncePerSecond(client);
+
+  uploadAvatarForNewYearCountdown(client);
 })();
 
-async function uploadAvatarOnceEveryMinute(client: TelegramClient) {
-  const timeout = 60000 - new Date().getSeconds() * 1000;
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function uploadAvatarOncePerSecond(client: TelegramClient) {
   try {
     await generateImageWithCurrentTime();
-    await updateAvatar(client);
+    updateAvatar(client);
   } catch (e) {
     logger.error(e);
   }
 
+  const timeout = 60000 - new Date().getSeconds() * 1000;
   logger.info(`Next update in ${timeout}ms`);
   setTimeout(() => {
-    uploadAvatarOnceEveryMinute(client);
+    uploadAvatarOncePerSecond(client);
+  }, timeout);
+}
+
+async function uploadAvatarForNewYearCountdown(client: TelegramClient) {
+  try {
+    await generateImageWithNewYearCountdown();
+    updateAvatar(client);
+  } catch (e) {
+    logger.error(e);
+  }
+
+  const currDate = new Date();
+
+  const updateHours = [0, 9, 17, 21];
+
+  const isEndOfDay = !updateHours.find((h) => h > currDate.getHours());
+  const timeout = Math.abs(
+    differenceInMilliseconds(
+      currDate,
+      new Date(
+        currDate.getFullYear(),
+        currDate.getMonth(),
+        currDate.getDate() + (isEndOfDay ? 1 : 0),
+        updateHours.find((h) => h > currDate.getHours()) || updateHours[0]
+      )
+    )
+  );
+
+  logger.info(`Next update in ${timeout}ms`);
+  setTimeout(() => {
+    uploadAvatarForNewYearCountdown(client);
   }, timeout);
 }
 
@@ -52,7 +86,7 @@ async function updateAvatar(client: TelegramClient) {
           (await fs.stat(getFileFromAssetsFolder(IMAGE_TO_UPLOAD_NAME))).size,
           getFileFromAssetsFolder(IMAGE_TO_UPLOAD_NAME)
         ),
-        workers: 1,
+        workers: 2,
       }),
     })
   );
@@ -85,7 +119,7 @@ async function auth() {
   }
 
   const client = new TelegramClient(stringSession, apiId, apiHash, {
-    connectionRetries: 100,
+    connectionRetries: 5,
   });
 
   await client.start({
@@ -131,6 +165,71 @@ async function generateImageWithCurrentTime() {
   await fs.writeFile(path.join(process.cwd(), `assets/${IMAGE_TO_UPLOAD_NAME}`), canvas.toBuffer('image/png'));
 
   logger.info('Image generated');
+}
+
+async function generateImageWithNewYearCountdown() {
+  logger.info('Generating image with New Year countdown...');
+
+  const currDate = new Date();
+  const isNewYear =
+    (currDate.getMonth() === 11 && currDate.getDate() === 31) ||
+    (currDate.getMonth() === 0 && currDate.getDate() === 1);
+
+  const IMAGE_WIDTH_HEIGHT = 1024;
+  const FONT_SIZE = isNewYear ? 90 : 130;
+  const SECONDARY_FONT_SIZE = 60;
+
+  const canvas = createCanvas(IMAGE_WIDTH_HEIGHT, IMAGE_WIDTH_HEIGHT);
+  const ctx = canvas.getContext('2d');
+
+  const imageByDayTime = {
+    [TimesOfDayEnum.EVENING]: 'evening.png',
+    [TimesOfDayEnum.DAY]: 'day.png',
+    [TimesOfDayEnum.MORNING]: 'morning.png',
+    [TimesOfDayEnum.NIGHT]: 'night.png',
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_, timeOfDay, season] = getCurrentTimeAndTimeOfDayAndSeason();
+  const daysBeforeNewYear = getDaysNumberBeforeNewYear();
+
+  const daysBeforeNewYearStr = !isNewYear ? `${daysBeforeNewYear} Days` : 'Happy New Year!';
+  const secondaryText = 'until New Year';
+
+  ctx.drawImage(
+    await loadImage(getFileFromAssetsFolder(season + '/' + isNewYear ? 'newyear.png' : imageByDayTime[timeOfDay])),
+    0,
+    0
+  );
+  ctx.font = `bold ${FONT_SIZE}pt 'PT Sans'`;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+
+  const { width } = ctx.measureText(daysBeforeNewYearStr);
+
+  ctx.fillText(daysBeforeNewYearStr, IMAGE_WIDTH_HEIGHT / 2 - width / 2, IMAGE_WIDTH_HEIGHT / 2 + FONT_SIZE / 2);
+
+  ctx.font = `bold ${SECONDARY_FONT_SIZE}pt 'PT Sans'`;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+
+  const { width: secondaryTextWidth } = ctx.measureText(secondaryText);
+
+  if (!isNewYear) {
+    ctx.fillText(
+      secondaryText,
+      IMAGE_WIDTH_HEIGHT / 2 - secondaryTextWidth / 2,
+      IMAGE_WIDTH_HEIGHT / 2 + FONT_SIZE + SECONDARY_FONT_SIZE / 2
+    );
+  }
+
+  await fs.writeFile(path.join(process.cwd(), `assets/${IMAGE_TO_UPLOAD_NAME}`), canvas.toBuffer('image/png'));
+
+  logger.info('Image generated');
+}
+
+function getDaysNumberBeforeNewYear() {
+  const currDate = new Date();
+
+  return Math.abs(differenceInDays(new Date(), new Date(currDate.getFullYear() + 1, 0)));
 }
 
 function getCurrentTimeAndTimeOfDayAndSeason(): [string, TimesOfDayEnum, string] {
