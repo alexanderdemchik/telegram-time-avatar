@@ -197,7 +197,7 @@ async function generateImageWithNewYearCountdown() {
   const secondaryText = 'until New Year';
 
   ctx.drawImage(
-    await loadImage(getFileFromAssetsFolder(season + '/' + isNewYear ? 'newyear.png' : imageByDayTime[timeOfDay])),
+    await loadImage(getFileFromAssetsFolder(season + '/' + (isNewYear ? 'newyear.png' : imageByDayTime[timeOfDay]))),
     0,
     0
   );
