@@ -55,7 +55,7 @@ async function uploadAvatarForNewYearCountdown(client: TelegramClient) {
 
   const currDate = new Date();
 
-  const updateHours = [0, 9, 17, 21];
+  const updateHours = [0, 7, 9, 17, 20, 21];
 
   const isEndOfDay = !updateHours.find((h) => h > currDate.getHours());
   const timeout = Math.abs(
@@ -248,7 +248,7 @@ function getCurrentTimeAndTimeOfDayAndSeason(): [string, TimesOfDayEnum, string]
   const timeStr = `${normalizeNumber(hours)}:${normalizeNumber(date.getMinutes())}`;
 
   let timeOfDay = TimesOfDayEnum.EVENING;
-  if (hours < 6 || hours > 20) {
+  if (hours <= 6 || hours >= 20) {
     timeOfDay = TimesOfDayEnum.NIGHT;
   } else if (hours < 11) {
     timeOfDay = TimesOfDayEnum.MORNING;
@@ -258,7 +258,8 @@ function getCurrentTimeAndTimeOfDayAndSeason(): [string, TimesOfDayEnum, string]
 
   const season = date.getMonth() > 10 || date.getMonth() < 2 ? SeasonEnum.WINTER : SeasonEnum.SUMMER;
 
-  logger.debug(timeOfDay, season);
+  logger.info(timeOfDay);
+  logger.info(hours);
 
   return [timeStr, timeOfDay, season];
 }
