@@ -258,5 +258,7 @@ function getCurrentTimeAndTimeOfDayAndSeason(): [string, TimesOfDayEnum, string]
 
   const season = date.getMonth() > 10 || date.getMonth() < 2 ? SeasonEnum.WINTER : SeasonEnum.SUMMER;
 
+  logger.debug(timeOfDay, season);
+
   return [timeStr, timeOfDay, season];
 }
